@@ -99,14 +99,16 @@ export default function App() {
       const check = setInterval(async () => {
         const poll = await fetch(`${BACKEND_URL}/api/results/${json.execution_id}`);
         const data = await poll.json();
-
-        if (data.status === "done") {
+      
+        // Worker finished successfully
+        if (data.status === "success") {
           clearInterval(check);
           setOutput(data.result);
           setStatus("done");
           setLoading(false);
         }
-
+      
+        // Worker failed
         if (data.status === "error") {
           clearInterval(check);
           setOutput(data);
@@ -114,6 +116,7 @@ export default function App() {
           setLoading(false);
         }
       }, 2000);
+      
 
     } catch (err) {
       console.error(err);
