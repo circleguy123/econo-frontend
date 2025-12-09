@@ -3,6 +3,9 @@ import "./App.css";
 
 console.log("DEBUG: Backend URL =", import.meta.env.VITE_API_URL);
 const BACKEND_URL = import.meta.env.VITE_API_URL;
+console.log("ENV API URL =", import.meta.env.VITE_API_URL);
+console.log("Computed BACKEND_URL =", BACKEND_URL);
+
 
 export default function App() {
   const [file, setFile] = useState(null);
