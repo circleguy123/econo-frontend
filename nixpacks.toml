@@ -1,9 +1,12 @@
 [phases.setup]
-nixPkgs = ['nodejs_20', 'nginx']
+nixPkgs = ['nodejs_22', 'nginx']
 
 [phases.build]
-cmds = ['npm install', 'npm run build']
+cmds = [
+  'npm install',
+  'npm run build'
+]
 
 [start]
-cmd = "npm run preview -- --port=$PORT"
+cmd = "npm run preview -- --port=$PORT --host"
 
