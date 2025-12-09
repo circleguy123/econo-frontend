@@ -1,5 +1,21 @@
 // =============================
+const BACKEND_URL = "https://backend-production-7fc0.up.railway.app";
+
+function api(path) {
+    if (!path.startsWith("/")) path = "/" + path;
+    return BACKEND_URL + path;
+}
+
+// =============================
 // CONFIG — BACKEND URL
+// =============================
+const BACKEND_URL = "https://backend-production-7fc0.up.railway.app";
+
+function api(path) {
+    if (!path.startsWith("/")) path = "/" + path;
+    return BACKEND_URL + path;
+}
+
 // =============================
 
 // MUST NOT end with a slash — prevents //api/... bugs
