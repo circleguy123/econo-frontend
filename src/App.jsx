@@ -26,11 +26,16 @@ export default function App() {
 
     const form = new FormData();
     form.append("file", file);
+    form.append("dv_override", y);
+    form.append("predictor_override", X);
+    form.append("research_question", "");
+    form.append("report_type", "executive");
+
+    // Keep these if your worker uses them:
     form.append("method", method);
-    form.append("y", y);
-    form.append("X", X);
     form.append("panel_id", panelId);
     form.append("panel_time", panelTime);
+
 
     try {
       // submit real job
