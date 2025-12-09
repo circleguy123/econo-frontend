@@ -2,7 +2,6 @@ import { useState } from "react";
 import "./App.css";
 
 console.log("DEBUG: Backend URL =", import.meta.env.VITE_API_URL);
-
 const BACKEND_URL = import.meta.env.VITE_API_URL;
 
 export default function App() {
@@ -14,10 +13,54 @@ export default function App() {
   const [panelTime, setPanelTime] = useState("");
   const [output, setOutput] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState("idle"); // idle | running | done | error
+  const [status, setStatus] = useState("idle");
   const [execId, setExecId] = useState(null);
 
+  const [autoIdCandidates, setAutoIdCandidates] = useState([]);
+  const [autoTimeCandidates, setAutoTimeCandidates] = useState([]);
+
+  // ============================================================
+  // FILE INSPECTION → AUTO-DETECT DV, X, PANEL ID, TIME
+  // ============================================================
+  async function inspectFile(f) {
+    if (!f) return;
+
+    const form = new FormData();
+    form.append("file", f);
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/inspect`, {
+        method: "POST",
+        body: form,
+      });
+
+      const data = await res.json();
+      console.log("INSPECT:", data);
+
+      setY(data.auto_dependent_variable || "");
+
+      if (data.suggested_predictors?.length > 0) {
+        setX(data.suggested_predictors.join(","));
+      }
+
+      setAutoIdCandidates(data.auto_id_candidates || []);
+      setAutoTimeCandidates(data.auto_time_candidates || []);
+
+    } catch (err) {
+      console.error("INSPECT ERROR:", err);
+      alert("Could not inspect dataset.");
+    }
+  }
+
+  // ============================================================
+  // RUN ANALYSIS
+  // ============================================================
   async function runAnalysis() {
+    if (method.includes("panel") && (!panelId || !panelTime)) {
+      alert("Please select Panel ID and Time columns.");
+      return;
+    }
+
     if (!file) return alert("Upload a dataset first.");
 
     setStatus("running");
@@ -31,14 +74,11 @@ export default function App() {
     form.append("research_question", "");
     form.append("report_type", "executive");
 
-    // Keep these if your worker uses them:
     form.append("method", method);
     form.append("panel_id", panelId);
     form.append("panel_time", panelTime);
 
-
     try {
-      // submit real job
       const res = await fetch(`${BACKEND_URL}/api/analyze`, {
         method: "POST",
         body: form,
@@ -55,7 +95,7 @@ export default function App() {
 
       setExecId(json.execution_id);
 
-      // start polling worker results
+      // Poll results
       const check = setInterval(async () => {
         const poll = await fetch(`${BACKEND_URL}/api/results/${json.execution_id}`);
         const data = await poll.json();
@@ -83,6 +123,9 @@ export default function App() {
     }
   }
 
+  // ============================================================
+  // UI RENDER
+  // ============================================================
   return (
     <div className="app">
       <h1>ECONO ENGINE</h1>
@@ -90,7 +133,14 @@ export default function App() {
       {/* Upload */}
       <div className="card">
         <h2>Upload Dataset</h2>
-        <input type="file" onChange={(e) => setFile(e.target.files[0])} />
+        <input
+          type="file"
+          onChange={(e) => {
+            const f = e.target.files[0];
+            setFile(f);
+            inspectFile(f);
+          }}
+        />
       </div>
 
       {/* Model Selector */}
@@ -121,18 +171,23 @@ export default function App() {
           onChange={(e) => setX(e.target.value)}
         />
 
-        {(method.includes("panel") || method === "panel_ab") && (
+        {method.includes("panel") && (
           <>
-            <input
-              placeholder="Panel ID column"
-              value={panelId}
-              onChange={(e) => setPanelId(e.target.value)}
-            />
-            <input
-              placeholder="Time column"
-              value={panelTime}
-              onChange={(e) => setPanelTime(e.target.value)}
-            />
+            <label>Panel ID Column</label>
+            <select value={panelId} onChange={(e) => setPanelId(e.target.value)}>
+              <option value="">Select panel ID</option>
+              {autoIdCandidates.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+
+            <label>Time Column</label>
+            <select value={panelTime} onChange={(e) => setPanelTime(e.target.value)}>
+              <option value="">Select time column</option>
+              {autoTimeCandidates.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
           </>
         )}
       </div>
@@ -159,6 +214,7 @@ export default function App() {
         </div>
       )}
 
+      {/* Error */}
       {status === "error" && (
         <div className="card">
           <h2>Error</h2>
