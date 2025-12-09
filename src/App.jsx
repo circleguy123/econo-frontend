@@ -1,7 +1,7 @@
 import { useState } from "react";
 import "./App.css";
 
-const BACKEND_URL = import.meta.env.VITE_API_URL; 
+const BACKEND_URL = "https://backend-production-7fc0.up.railway.app";
 // Example: "https://backend-production-7fc0.up.railway.app"
 
 export default function App() {
