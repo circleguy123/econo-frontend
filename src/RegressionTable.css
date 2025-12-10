@@ -1,0 +1,43 @@
+.reg-card {
+    background: #181818;
+    padding: 20px;
+    border-radius: 12px;
+    margin-bottom: 30px;
+    box-shadow: 0px 0px 12px #0008;
+  }
+  
+  .reg-title {
+    margin: 0 0 12px 0;
+  }
+  
+  .reg-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+  
+  .reg-table th {
+    background: #222;
+    padding: 8px;
+    border-bottom: 2px solid #333;
+    text-align: left;
+  }
+  
+  .reg-table td {
+    padding: 8px;
+    border-bottom: 1px solid #333;
+  }
+  
+  .haus-summary {
+    margin-top: 12px;
+    font-size: 0.9rem;
+  }
+  
+  .haus-conclusion {
+    background: #222;
+    padding: 8px;
+    display: inline-block;
+    margin-top: 8px;
+    border-radius: 6px;
+  }
+  

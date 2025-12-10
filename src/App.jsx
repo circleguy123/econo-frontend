@@ -1,11 +1,12 @@
 import { useState } from "react";
 import "./App.css";
 
+import RegressionTable from "./RegressionTable";
+import HausmanComparison from "./HausmanComparison";
+import ModelSummary from "./ModelSummary";
+
 console.log("DEBUG: Backend URL =", import.meta.env.VITE_API_URL);
 const BACKEND_URL = import.meta.env.VITE_API_URL;
-console.log("ENV API URL =", import.meta.env.VITE_API_URL);
-console.log("Computed BACKEND_URL =", BACKEND_URL);
-
 
 export default function App() {
   const [file, setFile] = useState(null);
@@ -14,6 +15,7 @@ export default function App() {
   const [X, setX] = useState("");
   const [panelId, setPanelId] = useState("");
   const [panelTime, setPanelTime] = useState("");
+
   const [output, setOutput] = useState(null);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("idle");
@@ -22,12 +24,13 @@ export default function App() {
   const [autoIdCandidates, setAutoIdCandidates] = useState([]);
   const [autoTimeCandidates, setAutoTimeCandidates] = useState([]);
 
+  const [progressMessages, setProgressMessages] = useState([]);
+
   // ============================================================
-  // FILE INSPECTION → AUTO-DETECT DV, X, PANEL ID, TIME
+  // FILE INSPECTION → AUTO-DETECT VARIABLES
   // ============================================================
   async function inspectFile(f) {
     if (!f) return;
-
     const form = new FormData();
     form.append("file", f);
 
@@ -38,17 +41,14 @@ export default function App() {
       });
 
       const data = await res.json();
-      console.log("INSPECT:", data);
 
       setY(data.auto_dependent_variable || "");
-
       if (data.suggested_predictors?.length > 0) {
         setX(data.suggested_predictors.join(","));
       }
 
       setAutoIdCandidates(data.auto_id_candidates || []);
       setAutoTimeCandidates(data.auto_time_candidates || []);
-
     } catch (err) {
       console.error("INSPECT ERROR:", err);
       alert("Could not inspect dataset.");
@@ -56,16 +56,36 @@ export default function App() {
   }
 
   // ============================================================
+  // SSE PROGRESS STREAM
+  // ============================================================
+  function startRealtimeProgress(execId) {
+    const url = `${BACKEND_URL}/realtime/${execId}`;
+    console.log("Connecting to SSE:", url);
+
+    const evtSource = new EventSource(url);
+
+    evtSource.onmessage = (event) => {
+      const msg = event.data.trim();
+      if (msg) {
+        setProgressMessages((prev) => [...prev, msg]);
+      }
+    };
+
+    evtSource.onerror = (err) => {
+      console.error("SSE Error:", err);
+      evtSource.close();
+    };
+
+    return evtSource;
+  }
+
+  // ============================================================
   // RUN ANALYSIS
   // ============================================================
   async function runAnalysis() {
-    if (method.includes("panel") && (!panelId || !panelTime)) {
-      alert("Please select Panel ID and Time columns.");
-      return;
-    }
-
     if (!file) return alert("Upload a dataset first.");
 
+    setProgressMessages([]);
     setStatus("running");
     setLoading(true);
     setOutput(null);
@@ -76,7 +96,6 @@ export default function App() {
     form.append("predictor_override", X);
     form.append("research_question", "");
     form.append("report_type", "executive");
-
     form.append("method", method);
     form.append("panel_id", panelId);
     form.append("panel_time", panelTime);
@@ -91,46 +110,52 @@ export default function App() {
 
       if (!json.execution_id) {
         alert("Backend did not return execution_id");
-        console.error(json);
         setStatus("error");
         return;
       }
 
       setExecId(json.execution_id);
 
+      const sse = startRealtimeProgress(json.execution_id);
+      window._econo_sse = sse;
+
       // Poll results
       const check = setInterval(async () => {
         const poll = await fetch(`${BACKEND_URL}/api/results/${json.execution_id}`);
         const data = await poll.json();
-      
-        // Worker finished successfully
-        if (data.status === "success") {
+
+        if (data.status === "running") return;
+
+        if (data.status === "done" || data.status === "success") {
           clearInterval(check);
-          setOutput(data.result);
+          window._econo_sse?.close();
+          setOutput(data.result.output);
           setStatus("done");
           setLoading(false);
+          return;
         }
-      
-        // Worker failed
+
         if (data.status === "error") {
           clearInterval(check);
+          window._econo_sse?.close();
           setOutput(data);
           setStatus("error");
           setLoading(false);
         }
+
       }, 2000);
-      
 
     } catch (err) {
       console.error(err);
       alert("Frontend cannot reach backend.");
       setStatus("error");
       setLoading(false);
+      window._econo_sse?.close();
     }
   }
 
   // ============================================================
-  // UI RENDER
+  // UI
   // ============================================================
   return (
     <div className="app">
@@ -161,7 +186,7 @@ export default function App() {
         </select>
       </div>
 
-      {/* Model Inputs */}
+      {/* Inputs */}
       <div className="card">
         <h2>Model Inputs</h2>
 
@@ -198,7 +223,7 @@ export default function App() {
         )}
       </div>
 
-      {/* Run Button */}
+      {/* Run */}
       <button onClick={runAnalysis} disabled={loading}>
         {loading ? "Running..." : "Run Analysis"}
       </button>
@@ -212,11 +237,50 @@ export default function App() {
         </div>
       )}
 
-      {/* Results */}
+      {/* Live Progress */}
+      {status === "running" && (
+        <div className="card">
+          <h2>Live Progress</h2>
+          <div className="progress-box">
+            {progressMessages.map((msg, i) => (
+              <div key={i}>• {msg}</div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Final Results */}
       {status === "done" && output && (
         <div className="card">
           <h2>Results</h2>
-          <pre>{JSON.stringify(output, null, 2)}</pre>
+
+          {/* ⭐ NEW — Combined Summary Table */}
+          {output.results && <ModelSummary results={output.results} />}
+
+          {/* Individual Models */}
+          {output.results?.ols && (
+            <RegressionTable title="Ordinary Least Squares" model={output.results.ols} />
+          )}
+
+          {output.results?.fe && (
+            <RegressionTable title="Fixed Effects" model={output.results.fe} />
+          )}
+
+          {output.results?.re && (
+            <RegressionTable title="Random Effects" model={output.results.re} />
+          )}
+
+          {output.results?.hausman && (
+            <HausmanComparison
+              fe={output.results.fe}
+              re={output.results.re}
+              haus={output.results.hausman}
+            />
+          )}
+
+          {output.results?.ab && (
+            <RegressionTable title="Arellano–Bond GMM" model={output.results.ab} />
+          )}
         </div>
       )}
 
@@ -224,7 +288,6 @@ export default function App() {
       {status === "error" && (
         <div className="card">
           <h2>Error</h2>
-          <p>There was an error during analysis</p>
           {output && <pre>{JSON.stringify(output, null, 2)}</pre>}
         </div>
       )}
